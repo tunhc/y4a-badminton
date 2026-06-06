@@ -324,6 +324,9 @@ function App() {
             <div style={{padding:'18px 2px 6px',color:'var(--txt-3)',fontSize:11,textAlign:'center',lineHeight:1.6}}>
               🟢 đã trả &nbsp;·&nbsp; 🟡 chưa trả &nbsp;·&nbsp; ⚫ không đánh
             </div>
+            <div className="fab-row">
+              <button className="bigbtn" onClick={() => setQrOpen(true)}>{I.qr}Xem QR chuyển khoản</button>
+            </div>
             <div className="reset-block">
               <div className="reset-card">
                 <div className="rc-txt">
@@ -354,6 +357,9 @@ function App() {
           </div>
           {tab < 4 && per > 0 && (
             <div className="amt-note"><span className="l">Số tiền mỗi người tuần này</span><span className="v">{fmt(per)}đ</span></div>
+          )}
+          {tab === 4 && grandOut > 0 && (
+            <div className="amt-note"><span className="l">Tổng còn thiếu tháng này</span><span className="v">{fmt(grandOut)}đ</span></div>
           )}
         </div>
       </div>
