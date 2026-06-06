@@ -81,7 +81,7 @@ function MoneyInput({ icon, label, value, onChange }) {
 /* ---------- main ---------- */
 function App() {
   const [st, setSt] = useState(freshState);
-  const [loading, setLoading] = useState(true);
+  const [synced, setSynced] = useState(false);
   const [tab, setTab] = useState(0); // 0-3 weeks, 4 = total
   const [qrOpen, setQrOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
@@ -94,22 +94,22 @@ function App() {
 
   // Real-time listener từ Firestore
   useEffect(() => {
-    const timeout = setTimeout(() => setLoading(false), 4000); // fallback nếu Firebase timeout
-    const unsub = GROUP_DOC.onSnapshot((snap) => {
-      clearTimeout(timeout);
-      if (snap.exists()) {
-        fromCloud.current = true;
-        setSt(snap.data());
-      }
-      setLoading(false);
-    }, (err) => { clearTimeout(timeout); console.error('Firestore:', err); setLoading(false); });
-    return () => { unsub(); clearTimeout(timeout); };
+    try {
+      const unsub = GROUP_DOC.onSnapshot((snap) => {
+        if (snap.exists()) {
+          fromCloud.current = true;
+          setSt(snap.data());
+        }
+        setSynced(true);
+      }, (err) => { console.error('Firestore:', err); setSynced(true); });
+      return unsub;
+    } catch(e) { console.error(e); setSynced(true); }
   }, []);
 
   // Lưu lên Firestore khi state thay đổi (bỏ qua nếu change từ cloud)
   useEffect(() => {
-    if (loading) return;
     if (fromCloud.current) { fromCloud.current = false; return; }
+    if (!synced) return;
     GROUP_DOC.set(st).catch(console.error);
   }, [st]);
 
@@ -205,16 +205,6 @@ function App() {
   const grandOut = grandOwed - grandPaid;
   const pct = grandOwed ? Math.round(grandPaid / grandOwed * 100) : 0;
 
-  if (loading) return (
-    <div className="app" style={{display:'grid',placeItems:'center',minHeight:'100vh'}}>
-      <div style={{textAlign:'center',color:'var(--txt-3)'}}>
-        <div style={{fontSize:32,marginBottom:12}}>🏸</div>
-        <div style={{fontFamily:'Archivo',fontWeight:800,fontSize:15,color:'var(--txt)'}}>CHIA CẦU</div>
-        <div style={{fontSize:12,marginTop:6}}>Đang kết nối...</div>
-      </div>
-    </div>
-  );
-
   return (
     <div className="app">
       <div className="court-lines"></div>
@@ -225,6 +215,7 @@ function App() {
             <div className="mk">C</div>
             <div className="wm">CHIA&nbsp;CẦU<small>CHIA TIỀN NHÓM</small></div>
           </div>
+          {!synced && <span style={{fontSize:10,color:'var(--txt-3)',marginLeft:4}}>⏳</span>}
           <div className="host-chip" onClick={() => setQrOpen(true)}>
             <div className="ht"><b>Quế Anh</b><span>HOST · THU TIỀN</span></div>
             <div className="qr-btn">{I.qr}</div>
