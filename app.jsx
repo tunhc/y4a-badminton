@@ -1,5 +1,18 @@
 const { useState, useEffect, useRef } = React;
 
+/* ---------- Firebase ---------- */
+const firebaseConfig = {
+  apiKey: "AIzaSyB4dh88p67AceW0jCh7EitNhJ-ICEW-rdE",
+  authDomain: "badminton-y4a.firebaseapp.com",
+  projectId: "badminton-y4a",
+  storageBucket: "badminton-y4a.firebasestorage.app",
+  messagingSenderId: "428375404131",
+  appId: "1:428375404131:web:17a29b5d4a415c9c261256",
+};
+if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+const GROUP_DOC = db.collection('groups').doc('y4a');
+
 /* ---------- helpers ---------- */
 const fmt = (n) => (n || 0).toLocaleString('vi-VN');
 const roundK = (n) => Math.round(n / 1000) * 1000;
@@ -34,7 +47,6 @@ function freshState() {
 }
 
 const MONTHS = ['Tháng 1','Tháng 2','Tháng 3','Tháng 4','Tháng 5','Tháng 6','Tháng 7','Tháng 8','Tháng 9','Tháng 10','Tháng 11','Tháng 12'];
-const STORE_KEY = 'chiacau_v2';
 
 /* ---------- icons ---------- */
 const I = {
@@ -68,10 +80,8 @@ function MoneyInput({ icon, label, value, onChange }) {
 
 /* ---------- main ---------- */
 function App() {
-  const [st, setSt] = useState(() => {
-    try { const s = localStorage.getItem(STORE_KEY); if (s) return JSON.parse(s); } catch(e){}
-    return freshState();
-  });
+  const [st, setSt] = useState(freshState);
+  const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState(0); // 0-3 weeks, 4 = total
   const [qrOpen, setQrOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
@@ -80,8 +90,26 @@ function App() {
   const [copied, setCopied] = useState(false);
   const [toast, setToast] = useState('');
   const toastRef = useRef();
+  const fromCloud = useRef(false);
 
-  useEffect(() => { try { localStorage.setItem(STORE_KEY, JSON.stringify(st)); } catch(e){} }, [st]);
+  // Real-time listener từ Firestore
+  useEffect(() => {
+    const unsub = GROUP_DOC.onSnapshot((snap) => {
+      if (snap.exists()) {
+        fromCloud.current = true;
+        setSt(snap.data());
+      }
+      setLoading(false);
+    }, () => setLoading(false));
+    return unsub;
+  }, []);
+
+  // Lưu lên Firestore khi state thay đổi (bỏ qua nếu change từ cloud)
+  useEffect(() => {
+    if (loading) return;
+    if (fromCloud.current) { fromCloud.current = false; return; }
+    GROUP_DOC.set(st).catch(console.error);
+  }, [st]);
 
   const showToast = (msg) => {
     setToast(msg);
@@ -174,6 +202,16 @@ function App() {
   const grandPaid = memberTotals.reduce((a, x) => a + (x.paid ? x.owed : 0), 0);
   const grandOut = grandOwed - grandPaid;
   const pct = grandOwed ? Math.round(grandPaid / grandOwed * 100) : 0;
+
+  if (loading) return (
+    <div className="app" style={{display:'grid',placeItems:'center',minHeight:'100vh'}}>
+      <div style={{textAlign:'center',color:'var(--txt-3)'}}>
+        <div style={{fontSize:32,marginBottom:12}}>🏸</div>
+        <div style={{fontFamily:'Archivo',fontWeight:800,fontSize:15,color:'var(--txt)'}}>CHIA CẦU</div>
+        <div style={{fontSize:12,marginTop:6}}>Đang kết nối...</div>
+      </div>
+    </div>
+  );
 
   return (
     <div className="app">
