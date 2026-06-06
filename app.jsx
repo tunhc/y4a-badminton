@@ -111,8 +111,6 @@ function App() {
   const setField = (k, v) => setWeek((w) => ({ ...w, [k]: v }));
   const togglePlay = (m) => setWeek((w) => {
     const p = { ...w.players[m], playing: !w.players[m].playing };
-    if (!p.playing) p.paid = false;
-    if (m === HOST && p.playing) p.paid = true;
     return { ...w, players: { ...w.players, [m]: p } };
   });
   const toggleMonthPaid = (m) => {
@@ -230,7 +228,7 @@ function App() {
               <div className="sumtop">
                 <div className="minicol"><div className="k">Tổng chi</div><div className="v">{fmt(total)}đ</div></div>
                 <div className="minicol"><div className="k">Số người</div><div className="v">{playing.length}</div></div>
-                <div className="minicol"><div className="k">Đã thu</div><div className="v peo">{paidCount}/{owing.length}</div></div>
+                <div className="minicol"><div className="k">Cần thu</div><div className="v peo">{owing.length} người</div></div>
               </div>
               <div className="sumdiv"></div>
               <div className="perperson">
