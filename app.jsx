@@ -87,6 +87,7 @@ function App() {
   const [addOpen, setAddOpen] = useState(false);
   const [resetOpen, setResetOpen] = useState(false);
   const [newName, setNewName] = useState('');
+  const [monthOpen, setMonthOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [toast, setToast] = useState('');
   const toastRef = useRef();
@@ -96,7 +97,7 @@ function App() {
   useEffect(() => {
     try {
       const unsub = GROUP_DOC.onSnapshot((snap) => {
-        if (snap.exists()) {
+        if (snap.exists) {
           fromCloud.current = true;
           setSt(snap.data());
         }
@@ -223,7 +224,10 @@ function App() {
         </div>
 
         <div className="monthrow">
-          <div className="ml"><span className="dot"></span>{MONTHS[st.monthIdx]} · {st.year}</div>
+          <div className="ml" style={{cursor:'pointer'}} onClick={() => setMonthOpen(true)}>
+            <span className="dot"></span>{MONTHS[st.monthIdx]} · {st.year}
+            <span style={{fontSize:10,color:'var(--txt-3)',marginLeft:6}}>▼</span>
+          </div>
           <div className="navmonth">
             <button onClick={() => changeMonth(-1)}>{I.left}</button>
             <button onClick={() => changeMonth(1)}>{I.right}</button>
@@ -415,6 +419,33 @@ function App() {
           <button className="bigbtn danger" onClick={() => resetAll(true)}>↻&nbsp; Xoá & tính lại (giữ danh sách tên)</button>
           <button className="bigbtn ghost" onClick={() => resetAll(false)}>Xoá luôn cả tên lẻ đã thêm</button>
           <button className="bigbtn ghost" onClick={() => setResetOpen(false)}>Huỷ</button>
+        </div>
+      </div>
+
+      {/* ---------- month picker ---------- */}
+      <div className={'ov '+(monthOpen?'show':'')} onClick={() => setMonthOpen(false)}>
+        <div className="sheet" onClick={(e) => e.stopPropagation()}>
+          <div className="grab"></div>
+          <h3>Chọn tháng</h3>
+          <div className="sub">{st.year}</div>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8,marginBottom:16}}>
+            {MONTHS.map((m, i) => (
+              <button key={i}
+                style={{
+                  padding:'12px 4px',borderRadius:12,border:'1px solid',
+                  borderColor: st.monthIdx===i ? 'var(--green)' : 'var(--line)',
+                  background: st.monthIdx===i ? 'rgba(124,255,107,.12)' : 'var(--surface)',
+                  color: st.monthIdx===i ? 'var(--green)' : 'var(--txt-2)',
+                  fontFamily:'Archivo',fontWeight:700,fontSize:13,cursor:'pointer'
+                }}
+                onClick={() => { setSt(s => ({...s, monthIdx: i})); setMonthOpen(false); }}
+              >{m.replace('Tháng ','T')}</button>
+            ))}
+          </div>
+          <div style={{display:'flex',gap:8}}>
+            <button className="bigbtn ghost" style={{flex:1}} onClick={() => { setSt(s => ({...s, year: s.year-1})); }}>{I.left} {st.year-1}</button>
+            <button className="bigbtn ghost" style={{flex:1}} onClick={() => { setSt(s => ({...s, year: s.year+1})); }}>{st.year+1} {I.right}</button>
+          </div>
         </div>
       </div>
 
