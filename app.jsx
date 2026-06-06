@@ -94,14 +94,16 @@ function App() {
 
   // Real-time listener từ Firestore
   useEffect(() => {
+    const timeout = setTimeout(() => setLoading(false), 4000); // fallback nếu Firebase timeout
     const unsub = GROUP_DOC.onSnapshot((snap) => {
+      clearTimeout(timeout);
       if (snap.exists()) {
         fromCloud.current = true;
         setSt(snap.data());
       }
       setLoading(false);
-    }, () => setLoading(false));
-    return unsub;
+    }, (err) => { clearTimeout(timeout); console.error('Firestore:', err); setLoading(false); });
+    return () => { unsub(); clearTimeout(timeout); };
   }, []);
 
   // Lưu lên Firestore khi state thay đổi (bỏ qua nếu change từ cloud)
