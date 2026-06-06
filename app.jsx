@@ -15,10 +15,9 @@ const HOST = 'Q.Anh';
 
 function freshWeek(members, seed) {
   const players = {};
-  members.forEach((m) => { players[m] = { playing: false, paid: false }; });
+  members.forEach((m) => { players[m] = { playing: false }; });
   if (seed) {
-    members.slice(0, 8).forEach((m) => { players[m] = { playing: true, paid: m === HOST }; });
-    players[HOST].paid = true;
+    members.slice(0, 8).forEach((m) => { players[m] = { playing: true }; });
   }
   return { shuttle: seed ? 250000 : 0, court: seed ? 350000 : 0, players };
 }
@@ -29,6 +28,7 @@ function freshState() {
     monthIdx: 5, // June
     year: 2026,
     members,
+    monthPaid: {},
     weeks: [freshWeek(members, true), freshWeek(members, false), freshWeek(members, false), freshWeek(members, false)],
   };
 }
@@ -102,7 +102,6 @@ function App() {
   const week = st.weeks[tab] || st.weeks[0];
   const { total, playing, per } = weekCalc(week);
   const owing = playing.filter((m) => m !== HOST);
-  const paidCount = owing.filter((m) => week.players[m].paid).length;
 
   /* ---- mutations ---- */
   const setWeek = (fn) => setSt((s) => {
@@ -116,7 +115,10 @@ function App() {
     if (m === HOST && p.playing) p.paid = true;
     return { ...w, players: { ...w.players, [m]: p } };
   });
-  const togglePaid = (m) => { if (m === HOST) return; setWeek((w) => ({ ...w, players: { ...w.players, [m]: { ...w.players[m], paid: !w.players[m].paid } } })); };
+  const toggleMonthPaid = (m) => {
+    if (m === HOST) return;
+    setSt((s) => ({ ...s, monthPaid: { ...s.monthPaid, [m]: !s.monthPaid[m] } }));
+  };
 
   const addMember = () => {
     const nm = newName.trim();
@@ -125,7 +127,7 @@ function App() {
     setSt((s) => {
       const members = [...s.members, nm];
       const weeks = s.weeks.map((w, i) => {
-        const players = { ...w.players, [nm]: { playing: i === tab, paid: false } };
+        const players = { ...w.players, [nm]: { playing: i === tab } };
         return { ...w, players };
       });
       return { ...s, members, weeks };
@@ -138,7 +140,7 @@ function App() {
   const resetAll = (keepMembers) => {
     setSt((s) => {
       const members = keepMembers ? s.members : [...DEFAULT_MEMBERS];
-      return { ...s, members, weeks: [freshWeek(members,false), freshWeek(members,false), freshWeek(members,false), freshWeek(members,false)] };
+      return { ...s, members, monthPaid: {}, weeks: [freshWeek(members,false), freshWeek(members,false), freshWeek(members,false), freshWeek(members,false)] };
     });
     setResetOpen(false);
     setTab(0);
@@ -158,20 +160,20 @@ function App() {
 
   /* ---- total view data ---- */
   const memberTotals = st.members.map((m) => {
-    let owed = 0, paid = 0;
+    let owed = 0;
     const weeks = st.weeks.map((w) => {
       const c = weekCalc(w);
       const playingHere = w.players[m] && w.players[m].playing;
       if (!playingHere) return 'none';
       if (m === HOST) return 'host';
       owed += c.per;
-      if (w.players[m].paid) { paid += c.per; return 'paid'; }
-      return 'unpaid';
+      return 'played';
     });
+    const paid = !!(st.monthPaid && st.monthPaid[m]);
     return { m, owed, paid, weeks, host: m === HOST };
   });
   const grandOwed = memberTotals.reduce((a, x) => a + x.owed, 0);
-  const grandPaid = memberTotals.reduce((a, x) => a + x.paid, 0);
+  const grandPaid = memberTotals.reduce((a, x) => a + (x.paid ? x.owed : 0), 0);
   const grandOut = grandOwed - grandPaid;
   const pct = grandOwed ? Math.round(grandPaid / grandOwed * 100) : 0;
 
@@ -256,28 +258,20 @@ function App() {
             <div className="settle">
               <div className="settle-head">
                 <div className="sec-label" style={{margin:0}}><span className="n">3</span>Thanh toán</div>
-                <div className="prog">Đã thu <b>{fmt(paidCount*per)}đ</b> / {fmt(owing.length*per)}đ</div>
+                <div className="prog">Mỗi người <b>{fmt(per)}đ</b></div>
               </div>
               {playing.length === 0 ? (
                 <div className="empty">Chọn người đánh ở trên để<br/>tính tiền và theo dõi thanh toán 🏸</div>
               ) : (
                 playing.map((m) => {
                   const isHost = m === HOST;
-                  const paid = week.players[m].paid;
                   return (
-                    <div key={m} className={'srow '+(paid?'paid':'')}>
+                    <div key={m} className="srow">
                       <div className="avi" style={{background: colorOf(m)}}>{initials(m)}</div>
                       <div className="sinfo">
                         <div className="nm">{m}{isHost && <span className="badge">Host</span>}</div>
                         <div className={'amt '+(isHost?'z':'')}>{isHost ? 'Người thu tiền' : fmt(per)+'đ'}</div>
                       </div>
-                      {isHost ? (
-                        <button className="paybtn host">Chủ chi</button>
-                      ) : (
-                        <button className={'paybtn '+(paid?'done':'')} onClick={() => togglePaid(m)}>
-                          {paid ? <>{I.check}Đã trả</> : 'Chưa trả'}
-                        </button>
-                      )}
                     </div>
                   );
                 })
@@ -300,22 +294,27 @@ function App() {
 
             <div className="mtable">
               <div className="thead"><span>Thành viên · W1–W4</span><span>Tổng nợ</span></div>
-              {memberTotals.map(({m, owed, paid, weeks, host}) => (
-                <div key={m} className="mrow">
+              {memberTotals.filter(({owed, host}) => host || owed > 0).map(({m, owed, paid, weeks, host}) => (
+                <div key={m} className={'mrow '+(paid&&!host?'paid':'')}>
                   <div className="left">
                     <div className="avi" style={{background: colorOf(m)}}>{initials(m)}</div>
                     <div>
                       <div className="nm">{m}{host?' 👑':''}</div>
                       <div className="weeks">
-                        {weeks.map((s, i) => <span key={i} className={'wd '+(s==='paid'||s==='host'?'paidw':s==='unpaid'?'played':'')}></span>)}
+                        {weeks.map((s, i) => <span key={i} className={'wd '+(s==='host'||s==='played'?'played':'')}></span>)}
                       </div>
                     </div>
                   </div>
                   <div className="right">
                     {host ? (
-                      <><div className="rt" style={{color:'var(--txt-3)'}}>—</div><div className="rs">Chủ chi</div></>
+                      <button className="paybtn host">Chủ chi</button>
                     ) : (
-                      <><div className="rt">{fmt(owed)}đ</div><div className={'rs '+(owed>0&&paid>=owed?'ok':'')}>{owed===0?'Không đánh':paid>=owed?'Đã trả đủ':'Còn '+fmt(owed-paid)+'đ'}</div></>
+                      <div style={{textAlign:'right'}}>
+                        <div className="rt">{fmt(owed)}đ</div>
+                        <button className={'paybtn '+(paid?'done':'')} style={{marginTop:6}} onClick={() => toggleMonthPaid(m)}>
+                          {paid ? <>{I.check}Đã trả</> : 'Chưa trả'}
+                        </button>
+                      </div>
                     )}
                   </div>
                 </div>
